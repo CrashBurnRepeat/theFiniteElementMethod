@@ -1,0 +1,701 @@
+C  *********************************************************************
+C  **                                                                 **
+C  **                           FEM-1D.FOR                            **
+C  **                     A 1-D FEM PROGRAM WHICH                     **
+C  **                     ACCOMPANIES THE TEXTBOOK                    **
+C  **                                                                 **
+C  **                "THE FINITE ELEMENT METHOD: BASIC                **
+C  **                    CONCEPTS AND APPLICATIONS", 2nd Ed.          **
+C  **                                BY                               **
+C  **              DARRELL W. PEPPER AND JUAN C. HEINRICH             **
+C  **                  HEMISPHERE PUBLISHING COMPANY                  **
+C  **                                                                 **
+C  **              THIS PROGRAM USES GAUSS-SEIDEL ITERATION           **
+C  **              OR GAUSS ELIMINATION FOR SOLVING MATRICES          **
+C  **                                                                 **
+C  **         (NOTE: MAXIMUM NUMBER OF NODES DIMENSIONED TO 51)       **
+C  **                                                                 **
+C  **                                  NOV. 2, 2005 D. W. PEPPER      **
+C  *********************************************************************
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      IFLG=1
+      CALL INIT
+      CALL GAUSS
+      DO 1 L=1,NNODE
+    1 CNEW(L)=COLD(L)
+      CALL ASSEMB
+      KOUNT=0
+      NTIME=0
+      TIME=0
+      CALL BNDCON
+      DO 3 NSTEP=1,NSTOP
+      CALL MATRIX
+      IF(NTYPE.EQ.2)THEN
+      IF(KOUNT.EQ.KPRNT)THEN
+      CALL PRINT
+        KOUNT=0
+        ENDIF
+      TIME=TIME+DT
+      KOUNT=KOUNT+1
+      NTIME=NTIME+1
+        ENDIF
+      CALL RESID
+      DO 2 L=1,NNODE
+    2 COLD(L)=CNEW(L)
+    3 CONTINUE
+      WRITE(*,10)
+   10 FORMAT(/,1X,'MAXIMUM NUMBER OF TIME STEPS OR ITERATIONS REACHED')
+      STOP
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE INIT
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VM/NUMDIM,MTYPE,TO,NVEL,IAXI,RHO,CP
+      COMMON/VG/ISI(2),LEM(2),LME(2),ISIH(2),H(2),TINF(2)
+      COMMON/VE/NS(4),NX(4),NXSI(4),POS(4),W1(4),NODEL(2)
+      DIMENSION TITLE(18)
+      CHARACTER*4 STOP(3),WORD
+      DATA STOP/'DIRC','FLUX','CONV'/
+C
+      CALL SETPC
+C
+      WRITE(*,100)
+  100 FORMAT('',80('*'))
+      READ(5,101)TITLE
+  101 FORMAT(18A4)
+      WRITE(*,102)TITLE
+  102 FORMAT(5X,18A4)
+C
+      READ(5,*)MTYPE,NUMDIM,NNODE,NELEM,NUMN,NSTOP,KPRNT,NVEL
+      READ(5,*)NTYPE,DT,AF,TO,RHO,CP,IAXI
+      MTYPE=MTYPE+1
+      IF(NTYPE.EQ.1)THEN
+      AF=0
+      AFM=0
+      ENDIF
+      NGAUS=NUMN
+      RHOCP=RHO*CP
+C
+      DO 29 I=1,2
+      ISI(I)=0
+      ISIH(I)=0
+      LEM(I)=0
+      LME(I)=0
+      H(I)=0.0
+   29 TINF(I)=0.0
+C
+      DO 33 I=1,NNODE
+      CNEW(I)=0.
+      COLD(I)=TO
+      NTS(I)=0
+      NQS(I)=0
+      B(I)=0.
+      X(I)=0.
+      QQ(I)=0.
+      Q(I)=0.
+      F(I)=0.
+      FIXED(I)=0.
+      DX(I)=0.
+      VX(I)=0.
+      KNODE(I)=0
+C
+      DO 34 K=1,4
+   34 NODE(I,K)=0
+C
+      DO 33 J=1,NNODE
+      P(I,J)=0.
+      A(I,J)=0.
+      G(I,J)=0.
+   33 CONTINUE
+C
+      XMIN=10.0**3
+      XMAX=0.0
+      READ(5,*)(I,X(I),J=1,NNODE)
+      DO 31 L=1,NNODE
+      IF(X(I).LT.XMIN)XMIN=X(I)
+      IF(X(I).GT.XMAX)XMAX=X(I)
+   31 CONTINUE
+C
+      DO 105 I=1,NELEM
+      READ(5,*)J,QQ(J),DX(J),(NODE(J,MM),MM=1,NUMN)
+  105 CONTINUE
+C
+      DO 110 I=1,NNODE
+      READ(5,1015)WORD,NT,CNT
+      IF(WORD.EQ.STOP(1))GOTO 120
+      NTS(I)=NT
+      COLD(NT)=CNT
+      KNODE(NT)=1
+      FIXED(NT)=CNT
+  110 CONTINUE
+  120 NNST=I-1
+C
+      DO 130 I=1,NNODE
+      READ(5,1025)WORD,Q(I),LEM(I),ISI(I)
+      IF(WORD.EQ.STOP(2))GO TO 135
+  130 CONTINUE
+  135 NNQS=I-1
+C
+      K=0
+      DO 20 I=1,NNODE
+      DO 21 J=1,NNST
+      IF(I.EQ.NTS(J))GO TO 20
+   21 CONTINUE
+      K=K+1
+      NQS(K)=I
+   20 CONTINUE
+C
+      DO 140 I=1,1
+C      DO 140 I=1,NNODE
+C      READ(5,1026)WORD,H(I),TINF(I),LME(I),ISIH(I)
+      READ(5,*)H(I),TINF(I),LME(I),ISIH(I)
+C	IF(WORD.EQ.STOP(3))GO TO 145
+  140 CONTINUE
+  145 NNHC=1
+C 145 NNHC=I-1
+C
+      DO 32 I=1,NNODE
+   32 CNEW(I)=COLD(I)
+      IF(NVEL.EQ.1)THEN
+      READ(5,*)(I,VX(I),J=1,NNODE)
+      ENDIF
+C
+      NODEL(1)=1
+      IF(NUMN.EQ.2)NODEL(2)=2
+      IF(NUMN.EQ.3)NODEL(2)=3
+      IF(NUMN.EQ.4)NODEL(2)=4
+C
+      IF(NTYPE.EQ.1)WRITE(*,14)NTYPE
+      IF(NTYPE.EQ.2)WRITE(*,15)NTYPE
+      AFM=AF-1.0
+      IF(NTYPE.EQ.1)GO TO 1
+      IF(AF.EQ.1.)WRITE(*,10)DT
+      IF(AF.EQ.0.5)WRITE(*,11)DT
+C
+    1 WRITE(*,12)NSTOP,KPRNT,TO,RHO,CP
+      WRITE(*,1035)NNODE,NELEM
+      WRITE(*,1040)
+      WRITE(*,1041)
+      DO 150 I=1,NNODE
+      WRITE(*,1045)I,X(I)
+  150 CONTINUE
+C
+      WRITE(*,1050)
+      DO 155 I=1,NELEM
+      WRITE(*,1055)I,QQ(I),DX(I),(NODE(I,MM),MM=1,NUMN)
+  155 CONTINUE
+C
+      WRITE(*,1060)
+      WRITE(*,1061)
+      DO 160 I=1,NNST
+      WRITE(*,1065)I,NTS(I),COLD(NTS(I))
+  160 CONTINUE
+C
+      WRITE(*,1080)
+      WRITE(*,1082)
+      DO 170 I=1,NNQS
+      ISI1=ISI(I)
+      WRITE(*,1085)I,Q(I),NODE(LEM(I),NODEL(ISI1))
+  170 CONTINUE
+C
+      WRITE(*,1081)
+      WRITE(*,1083)
+      DO 180 I=1,NNHC
+      ISI1=ISIH(I)
+      WRITE(*,1086)I,H(I),TINF(I),NODE(LME(I),NODEL(ISI1))
+  180 CONTINUE
+C
+      IF(NVEL.EQ.0)RETURN
+      WRITE(*,4040)
+      WRITE(*,4041)
+      DO 450 I=1,NNODE
+      WRITE(*,1045)I,VX(I)
+  450 CONTINUE
+C
+   10 FORMAT(10X,'FULLY IMPLICIT ',2X,'DT=',F8.4)
+   11 FORMAT(10X,'CRANK NICOLSON ',2X,'DT=',F8.4)
+   12 FORMAT(5X,'NSTOP=',I5,2X,'KPRNT=',I5,2X,'TO=',F8.4,2X,'RHO=',F8.4,
+     12X,'CP=',F8.4)
+   14 FORMAT(/,10X,'NTYPE=',I3,2X,'STEADY STATE')
+   15 FORMAT(/,10X,'NTYPE=',I3,2X,'TIME DEPENDENT')
+ 1015 FORMAT(6X,A4,I5,5X,F10.5)
+ 1025 FORMAT(6X,A4,F10.5,2I5)
+ 1026 FORMAT(6X,A4,2F10.5,2I5)
+ 1035 FORMAT(/,10X,'NO. OF NODES=',I3,5X,'NO.OF ELEMENTS=',I3)
+ 1040 FORMAT(/,5X,'SUMMARY OF NODAL COORDINATES')
+ 1041 FORMAT(7X,'I',12X,'X(I)')
+ 1045 FORMAT(5X,I3,7X,F10.3)
+ 1050 FORMAT(/,1X,'ELEMENT NUMBER',4X,'SOURCE',5X,'DX',8X,'NODE NUMBERS
+     $')
+ 1055 FORMAT(5X,I3,5X,2F10.3,4(4X,I3))
+ 1060 FORMAT(/,7X,'NODES WHERE CNEW IS SPECIFIED')
+ 1061 FORMAT(8X,'I',4X,'NODE',6X,'CNEW')
+ 1065 FORMAT(2X,2(4X,I3),3X,F8.3)
+ 1080 FORMAT(/,7X,'NODES WHERE FLUX IS SPECIFIED')
+ 1082 FORMAT(8X,'I',4X,'FLUX(Q)',3X,'NODE NUMBERS')
+ 1081 FORMAT(/,7X,'NODES WHERE TINF IS SPECIFIED')
+ 1083 FORMAT(8X,'I',6X,'H',6X,'TINF',4X,'NODE NUMBERS')
+ 1085 FORMAT(6X,I3,2X,F8.2,6X,I3)
+ 1086 FORMAT(6X,I3,2X,2F8.2,4X,I3)
+ 4040 FORMAT(/,5X,'SUMMARY OF SPECIFIED NODAL VELOCITIES ')
+ 4041 FORMAT(7X,'I',12X,'VX(I)')
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE ASSEMB
+      REAL NS,NX,NXSI,MASS,MASST
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VE/NS(4),NX(4),NXSI(4),POS(4),W1(4),NODEL(2)
+      COMMON/VG/ISI(2),LEM(2),LME(2),ISIH(2),H(2),TINF(2)
+C
+      DO 1 K=1,NELEM
+      CALL NODSET(K,I,J,M,N)
+      DO 1 KK=1,NUMN
+      L=NODE(K,KK)
+      DO 1 IQ=1,NGAUS
+      XSI=POS(IQ)
+      CALL SHAPE(XSI,I,J,M,N,DET)
+      F(L)=F(L)+NS(KK)*QQ(K)*DET*W1(IQ)
+      DO 1 KKK=1,NUMN
+      LL=NODE(K,KKK)
+      DIFF=DX(K)*NX(KKK)*NX(KK)
+      ADVEC=VX(L)*NX(KKK)*NS(KK)
+      MASS=NS(KKK)*NS(KK)
+      A(L,LL)=A(L,LL)+(DIFF+ADVEC)*DET*W1(IQ)
+    1 P(L,LL)=P(L,LL)+MASS*DET*W1(IQ)*RHOCP
+C
+      IF(NNHC.EQ.0)GO TO 10
+      DO 2 K=1,NNHC
+      NEL=LME(K)
+      CALL NODSET(NEL,I,J,M,N)
+      ISI1=ISIH(K)
+      CALL BCSIDE(ISI1,SIDE,I,J,M,N)
+      KN=NODEL(ISI1)
+      LL=NODE(NEL,KN)
+      KK=KN
+      KL=LL
+      MASST=NS(KN)*NS(KK)
+    2 A(LL,KL)=A(LL,KL)+MASST*H(K)*SIDE
+C
+   10 CONTINUE
+C
+      DO 3 L=1,NNODE
+      DO 3 LL=1,NNODE
+      G(L,LL)=G(L,LL)+AF*A(L,LL)+P(L,LL)/DT
+    3 CONTINUE
+C
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE MATRIX
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+C
+      DO 100 L=1,NNODE
+      B(L)=F(L)
+      DO 100 JJ=1,NNODE
+      RHS=(AFM*A(L,JJ)+P(L,JJ)/DT)*COLD(JJ)
+      IF(NTYPE.EQ.1)RHS=0
+  100 B(L)=B(L)+RHS
+C
+      IF(IFLG.EQ.1)THEN
+       CALL SEIDEL
+        ELSE
+         DO 150 K=1,NNST
+         I=NTS(K)
+  150   B(I)=0.0
+       CALL GAUSSR(CNEW,NNODE)
+      ENDIF
+C
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE BNDCON
+      REAL NS
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VE/NS(4),NX(4),NXSI(4),POS(4),W1(4),NODEL(2)
+      COMMON/VG/ISI(2),LEM(2),LME(2),ISIH(2),H(2),TINF(2)
+C
+      IF(NNQS.EQ.0)GO TO 2
+      DO 3 K=1,NNQS
+      NEL=LEM(K)
+      CALL NODSET(NEL,I,J,M,N)
+      ISI1=ISI(K)
+      CALL BCSIDE(ISI1,SIDE,I,J,M,N)
+      KN=NODEL(ISI1)
+      KK=NODE(NEL,KN)
+    3 F(KK)=F(KK)+NS(KN)*Q(K)*SIDE
+C
+    2 IF(NNHC.EQ.0)RETURN
+      DO 4 K=1,NNHC
+      NEL=LME(K)
+      CALL NODSET(NEL,I,J,M,N)
+      ISI1=ISIH(K)
+      CALL BCSIDE(ISI1,SIDE,I,J,M,N)
+      KN=NODEL(ISI1)
+      LL=NODE(NEL,KN)
+    4 F(LL)=F(LL)+NS(KN)*H(K)*TINF(K)*SIDE
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE BCSIDE(ISI1,SIDE,I,J,M,N)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VE/NS(4),NX(4),NXSI(4),POS(4),W1(4),NODEL(2)
+C
+C     YOU REALLY DON'T NEED THIS SUBROUTINE AND THE SIDE VALUE FOR
+C     1-D PROBLEMS SINCE SIDE = 1; HOWEVER, YOU DO NEED THIS TYPE OF
+C     SUBROUTINE FOR 2-D AND 3-D PROBLEMS, SO IT IS LEFT IN TO
+C     ILLUSTRATE WHAT HAPPENS AT THE END BOUNDARIES OF A 1-D PROBLEM
+C
+      GOTO (1,2),ISI1
+C
+C     LEFT SIDE BOUNDARY
+C
+    1 XSI= -1.0
+      CALL SHAPE(XSI,I,J,M,N,DET)
+      SIDE= 1.0
+      RETURN
+C
+C     RIGHT SIDE BOUNDARY
+C
+    2 XSI= 1.0
+      CALL SHAPE(XSI,I,J,M,N,DET)
+      SIDE= 1.0
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE PRINT
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      WRITE(*,120)
+      IF(NTYPE.EQ.1)THEN
+      WRITE(*,403)
+      ELSE
+      WRITE(*,402)NTIME,TIME
+      ENDIF
+      WRITE(*,400)
+      WRITE(*,401)(I,CNEW(I),I=1,NNODE)
+  120 FORMAT(/,20X,'VARIABLE VALUES')
+  400 FORMAT(/,5X,'NODE',6X,'CNEW')
+  401 FORMAT(5X,I3,5X,F8.2)
+  402 FORMAT(/,5X,'TIME STEPS',I4,2X,'TIME=',F8.3)
+  403 FORMAT(5X,'STEADY STATE')
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE RESID
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      MAXRES=0
+      ERR=0.0001
+      DO 1 I=1,NNODE
+      R=ABS(CNEW(I)-COLD(I))
+      IF(R.GT.ERR)MAXRES=1
+    1 CONTINUE
+      IF(MAXRES.EQ.1)RETURN
+      IF(MAXRES.EQ.0)THEN
+      WRITE(*,20)NTIME
+      CALL PRINT
+      CALL PRINTF
+      WRITE(*,10)
+      ENDIF
+   10 FORMAT(/,1X,'SOLUTION IS FINISHED')
+   20 FORMAT(/,2X,'PROGRAM HAS CONVERGED IN',I3,' STEPS')
+      STOP
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE PRINTF
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VM/NUMDIM,MTYPE,TO,NVEL,IAXI,RHO,CP
+      WRITE(7,'(8I4)')MTYPE,NUMDIM,NNODE,NELEM,NUMN,NSTOP,KPRNT,NVEL
+      WRITE(7,'(I4,5(F8.4,1X),2X,I4)')NTYPE,DT,AF,TO,RHO,CP,IAXI
+      DO 1 I=1,NNODE
+    1 WRITE(7,100)I,X(I)
+      DO 2 J=1,NELEM
+    2 WRITE(7,101)J,QQ(J),DX(J),(NODE(J,MM),MM=1,NUMN)
+      DO 3 I=1,NNODE
+    3 WRITE(7,100)I,CNEW(I),VX(I)
+  100 FORMAT(5X,I3,2X,2(F8.3,1X))
+  101 FORMAT(5X,I3,2X,2(F8.3,1X),2X,4I3)
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE NODSET(K,I,J,M,N)
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      IF(NUMN.EQ.2)GO TO 1
+      IF(NUMN.EQ.3)GO TO 2
+      IF(NUMN.EQ.4)GO TO 3
+C
+C     LINEAR
+C
+    1 I=NODE(K,1)
+      J=NODE(K,2)
+      RETURN
+C
+C     QUADRATIC
+C
+    2 I=NODE(K,1)
+      J=NODE(K,2)
+      M=NODE(K,3)
+      RETURN
+C
+C     CUBIC
+C
+    3 I=NODE(K,1)
+      J=NODE(K,2)
+      M=NODE(K,3)
+      N=NODE(K,4)
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE SHAPE(XSI,I,J,M,N,DET)
+      REAL NS,NX,NXSI
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VE/NS(4),NX(4),NXSI(4),POS(4),W1(4),NODEL(2)
+      IF(NUMN.EQ.2)GO TO 2
+      IF(NUMN.EQ.3)GO TO 3
+      IF(NUMN.EQ.4)GO TO 4
+C
+C     LINEAR BASIS FUNCTION
+C
+    2 XLEN=ABS(X(J)-X(I))
+      NS(1)= 0.5*(1.-XSI)
+      NS(2)= 0.5*(1.+XSI)
+      NXSI(1)=-0.5
+      NXSI(2)= 0.5
+      XXSI=NXSI(1)*X(I)+NXSI(2)*X(J)
+      GO TO 6
+C
+C     QUADRATIC BASIS FUNCTION
+C
+    3 XLEN=ABS(X(M)-X(I))
+      NS(1)= 0.5*XSI*(XSI-1.)
+      NS(2)= 1.-XSI*XSI
+      NS(3)= 0.5*XSI*(XSI+1.)
+      NXSI(1)= XSI-0.5
+      NXSI(2)= -2.*XSI
+      NXSI(3)= XSI+0.5
+      XXSI=NXSI(1)*X(I)+NXSI(2)*X(J)+NXSI(3)*X(M)
+      GO TO 6
+C
+C     CUBIC BASIS FUNCTION
+C
+    4 XLEN=ABS(X(N)-X(I))
+      NS(1)=0.0625*(1.-XSI)*(9.*XSI*XSI-1.)
+      NS(2)=0.5625*(1.-XSI*XSI)*(1.-3.*XSI)
+      NS(3)=0.5625*(1.-XSI*XSI)*(1.+3.*XSI)
+      NS(4)=0.0626*(9.*XSI*XSI-1.)*(1.+XSI)
+      NXSI(1)= 0.0625*(1.+18.*XSI-27.*XSI*XSI)
+      NXSI(2)= 0.5625*(-3.-2.*XSI+9.*XSI*XSI)
+      NXSI(3)= 0.5625*(3.-2.*XSI-9.*XSI*XSI)
+      NXSI(4)= 0.0625*(18.*XSI+27.*XSI*XSI-1.)
+      XXSI=NXSI(1)*X(I)+NXSI(2)*X(J)+NXSI(3)*X(M)+NXSI(4)*X(N)
+C
+    6 DET=XXSI
+      IF(DET.EQ.0.0)WRITE(*,100)
+      DO 7 K=1,NUMN
+    7 NX(K)=NXSI(K)/DET
+  100 FORMAT(2X,'THE DETERMINANT = 0.0')
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE GAUSS
+      COMMON/VE/NS(4),NX(4),NXSI(4),POS(4),W1(4),NODEL(2)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      GOTO(1,2,3,4)NGAUS
+C
+C     N=1 GAUSS POINT
+C
+    1 POS(1)=0.0
+      W1(1)=2.0
+      RETURN
+C
+C     N=2 GAUSS POINTS
+C
+    2 POS(1)=-0.5773502692
+      POS(2)= 0.5773502692
+      W1(1)=1.0
+      W1(2)=1.0
+      RETURN
+C
+C     N=3 GAUSS POINTS
+C
+    3 POS(1)=-0.7745966692
+      POS(2)= 0.
+      POS(3)= 0.7745966692
+      W1(1)= 0.55555555555
+      W1(2)= 0.88888888888
+      W1(3)= 0.55555555555
+      RETURN
+C
+C     N=4 GAUSS POINTS
+C
+    4 POS(1)=-0.8611363116
+      POS(2)=-0.3399810436
+      POS(3)= 0.3399810436
+      POS(4)= 0.8611363116
+      W1(1)= 0.3478548451
+      W1(2)= 0.6521451549
+      W1(3)= 0.6521451549
+      W1(4)= 0.3478548451
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE SEIDEL
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VA/P(51,51),COLD(51),CNEW(51)
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      ER=.0001
+      GOTO(100,200)NTYPE
+C
+C     TIME DEPENDENT MODE
+C
+  200 AMAX=0.0
+      DO 400 L=1,NNODE
+      IF(KNODE(L).EQ.1)GO TO 400
+      OLDVAL=CNEW(L)
+      SUM=0.0
+      DO 300 JJ=1,NNODE
+      IF(JJ.EQ.L)GO TO 300
+      SUM=SUM+(AF*A(L,JJ)+P(L,JJ)/DT)*CNEW(JJ)
+  300 CONTINUE
+      S=AF*A(L,L)+P(L,L)/DT
+      CNEW(L)=(-SUM+B(L))/S
+      ERR=ABS(CNEW(L)-OLDVAL)
+      IF(ERR.GT.AMAX)AMAX=ERR
+  400 CONTINUE
+      IF(AMAX.GT.ER)GO TO 200
+      RETURN
+C
+C     STEADY STATE MODE
+C
+  100 ITER=0
+  800 AMAX=0.0
+      DO 850 L=1,NNODE
+      IF(KNODE(L).EQ.1)GO TO 850
+      OLDVAL=CNEW(L)
+      SUM=0.0
+      DO 900 JJ=1,NNODE
+      IF(JJ.EQ.L)GO TO 900
+      SUM=SUM+A(L,JJ)*CNEW(JJ)
+  900 CONTINUE
+      IF(A(L,L).EQ.0.)GO TO 850
+      CNEW(L)=(-SUM+F(L))/A(L,L)
+      ERR=ABS(CNEW(L)-OLDVAL)
+      IF(ERR.GT.AMAX)AMAX=ERR
+  850 CONTINUE
+      ITER=ITER+1
+      IF(AMAX.GT.ER)GO TO 800
+      NTIME=ITER
+      RETURN
+      END
+C ----------------------------------------------------------------------
+      SUBROUTINE SETPC
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      CHARACTER INFIL*12,OUTFIL*12
+      DATA INFIL/'            '/,OUTFIL/'            '/
+      WRITE(*,105)
+  105 FORMAT(1X,'IF YOU WANT HARDCOPY OUTPUT, PRESS CTL-PRTSC NOW')
+      WRITE(*,'(/1X,A\)')' ENTER NAME FOR INPUT FILE: '
+      READ(*,'(BN,A)')INFIL
+      OPEN(5,FILE=INFIL)
+C
+      WRITE(*,'(/1X,A\)')' ENTER NAME FOR PLOT OUTPUT FILE: '
+      READ(*,'(BN,A)')OUTFIL
+      OPEN(7,FILE=OUTFIL,STATUS='NEW')
+      WRITE(7,'(A)')OUTFIL
+C
+      WRITE(*,'(/1X,A\)')' ENTER 1 FOR GAUSS-SEIDEL ITERATION OR 2 FOR G
+     1AUSS ELIMINATION: '
+      READ(*,'(I1)')IFLG
+      RETURN
+      END
+C -----------------------------------------------------------------------
+      SUBROUTINE GAUSSR(D,N)
+      COMMON/VD/AF,AFM,DT,NNQS,NUMN,NUM,NGAUS,NNHC,NNST,NSTOP,KPRNT,IFLG
+      COMMON/VB/A(51,51),G(51,51),B(51),X(51),QQ(51),XMIN,XMAX
+      COMMON/VK/NODE(51,4),KNODE(51),NNODE,NELEM,NTYPE,RHOCP,NTIME,TIME
+      COMMON/VC/Q(51),F(51),FIXED(51),NTS(51),NQS(51),DX(51),VX(51)
+      DIMENSION S(51,51),R(51),D(51)
+C
+      DO 1 I=1,N
+      R(I)=B(I)
+      DO 1 J=1,N
+    1 S(I,J)=G(I,J)
+C
+C     SETUP DIRICHLET VALUES
+C
+      DO 300 K=1,NNST
+      I=NTS(K)
+      DO 400 J=1,N
+      IF(J.EQ.I)GOTO 400
+      R(J)=R(J)-S(J,I)*FIXED(I)
+      S(J,I)=0.
+  400 CONTINUE
+      DO 401 J=1,N
+      IF(J.EQ.I)GOTO 401
+      R(I)=R(I)-S(I,J)*FIXED(I)
+      S(I,J)=0.
+  401 CONTINUE
+      S(I,I)=1.
+      R(I)=FIXED(I)
+  300 CONTINUE
+C
+C     ELIMINATION ROUTINE
+C
+      DO 10 K=1,N
+      K1=K+1
+      R(K)=R(K)/S(K,K)
+C
+      IF(K.EQ.N)GOTO 100
+      DO 20 J=K1,N
+      IF(S(K,J).EQ.0)GOTO 20
+      S(K,J)=S(K,J)/S(K,K)
+      DO 30 I=K1,N
+      S(I,J)=S(I,J)-S(I,K)*S(K,J)
+   30 CONTINUE
+      R(J)=R(J)-S(J,K)*R(K)
+   20 CONTINUE
+   10 CONTINUE
+C
+C     BACKWARD SUBSTITUTION
+C
+  100 K1=K
+      K=K-1
+      IF(K.EQ.0)GOTO 200
+      DO 40 J=K1,N
+      R(K)=R(K)-S(K,J)*R(J)
+   40 CONTINUE
+      GOTO 100
+  200 CONTINUE
+C
+      DO 2 K=1,N
+    2 D(K)=R(K)
+      RETURN
+      END
+
