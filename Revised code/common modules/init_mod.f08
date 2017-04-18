@@ -303,10 +303,12 @@ contains
 
   end subroutine SetPC
 
-  subroutine Print_data ()
+  subroutine Print_data (ntime, time)
     implicit none
 
-    integer :: i
+    integer, intent (in) :: ntime
+    real,    intent (in) :: time
+    integer              :: i
 
     write (*, 120)
     if (ntype == 1) then
@@ -340,11 +342,11 @@ contains
                                 nvel
     write (outfile_id, '(i4, 5(f8.4, 1x), 2x i4)')&
                                 ntype,&
-                                dt,
-                                af,
-                                to,
-                                rho,
-                                cp,
+                                dt,&
+                                af,&
+                                to,&
+                                rho,&
+                                cp,&
                                 iaxi
     do i = 1, nnode
       write (outfile_id, 100) i, x(i)

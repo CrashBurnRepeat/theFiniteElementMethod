@@ -1,9 +1,10 @@
 module gauss_mod
+  use init_mod, only : ngaus
 
 contains
-  subroutine Gauss (ngaus, pos, w1)
+  subroutine Gauss (pos, w1)
     implicit none
-    integer,           intent (in)     :: ngaus
+
     real, allocatable, intent (in out) :: pos(:)
     real, allocatable, intent (in out) :: w1(:)
 

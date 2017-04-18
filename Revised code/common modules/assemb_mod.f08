@@ -1,7 +1,15 @@
 module assemb_mod
   use init_mod, only : nelem,&
                        numn,&
-                       x
+                       x,&
+                       ngaus,&
+                       node, nnode, nodel,&
+                       af,&
+                       rhocp,&
+                       p, a, g, f, h,&
+                       dt, isih,&
+                       lme, nnhc,&
+                       vx, dx, qq
 
   public  :: Assemb
   public  :: Bcside
@@ -9,17 +17,30 @@ module assemb_mod
   private :: Shape
 
 contains
-  subroutine Assemb  ()
+  subroutine Assemb  (w1)
     implicit none
 
-    integer :: k
+    real, dimension (:), intent (in)  :: w1
+
+    integer :: k, kk, kkk, iq
+    integer :: i, j, m, n
+    integer :: l, ll, kl, kn
+    integer :: isi1, nel
+    real    :: advec
+    real    :: det
+    real    :: mass, masst
+    real    :: diff
+    real    :: side
+    real    :: xsi
+    real    :: ns(numn)
+    real    :: nx(numn)
 
     do k = 1, nelem
       call Nodset (k, i, j, m, n)
       do kk = 1, numn
         l = node (k, kk)
         do iq = 1, ngaus
-          call Shape (xsi, i, j, m, n, det)
+          call Shape (xsi, i, j, m, n, det, ns, nx)
           f(l) = f(l) + ns(kk) * qq(k) * det * w1(iq)
           do kkk = 1, numn
             ll = node (k,kkk)
@@ -79,15 +100,77 @@ contains
     case default
       print *, 'Invalid value for numn'
       stop
-    end select case
+    end select
   end subroutine Nodset
 
-  subroutine Shape ()
+  subroutine Shape (xsi, i, j, m, n, det, ns, nx)
     implicit none
-    
+
+    real,           intent (in)  :: xsi
+    integer,        intent (in)  :: i, j, m, n
+    real,           intent (out) :: det
+    real, optional, intent (out) :: ns(numn)
+    real, optional, intent (out) :: nx(numn)
+    real                         :: xxsi, xlen
+    real                         :: nxsi(numn)
+    integer                      :: k
+
+    select case (numn)
+    case (2)
+      xlen = abs (x(j) - x(i))
+      ns = 0.5 * [1.0 - xsi, 1.0 + xsi]
+      nxsi  = [-0.5, 0.5]
+      xxsi = dot_product (nxsi, x([i, j]))
+    case (3)
+      xlen = abs (x(m) - x(i))
+      ns = [0.5 * xsi * (xsi - 1.0),&
+            1.0 - xsi ** 2,&
+            0.5 * xsi * (xsi + 1.0)]
+      nxsi = [xsi - 0.5, -2.0 * xsi, xsi + 0.5]
+      xxsi = dot_product (nxsi, x([i, j, m]))
+    case (4)
+      xlen = abs (x(n) - x(i))
+      ns = [0.0625 * (1.0 - xsi) * (0.9 * xsi ** 2 - 1.0),&
+            0.5625 * (1.0 - xsi **2) * (1.0 - 3.0 * xsi), &
+            0.5625 * (1.0 - xsi **2) * (1.0 + 3.0 * xsi), &
+            0.0625 * (1.0 + xsi) * (0.9 * xsi ** 2 - 1.0)]
+      nxsi = [0.0625 * (1.0 + 0.18 * xsi - 27.0 * xsi ** 2), &
+              0.5625 * (-3.0 - 2.0 * xsi + 9.0 * xsi ** 2), &
+              0.5625 * (3.0 - 2.0 * xsi - 9.0 * xsi ** 2), &
+              0.0625 * (-1.0 + 0.18 * xsi + 27.0 * xsi ** 2)]
+      xxsi = dot_product (nxsi, x([i, j, m, n]))
+    case default
+      print *, ' Invalid value for numn '
+      stop
+    end select
+
+    det = xxsi
+    if (det == 0.0) write (*, 100) ! exact float equality? stop condition?
+    do k=1, numn
+      nx(k) = nxsi(k)/det
+    end do
+100 format (2x, 'The determinant  = 0.0')
   end subroutine Shape
 
-  subroutine Bcside ()
+  subroutine Bcside (isi1, side, i, j, m, n)
+    implicit none
 
+    integer, intent (in) :: isi1, i, j, m, n
+    real, intent (out) :: side
+    real :: xsi, det
+
+    select case (isi1)
+    case (1)
+      xsi = -1.0
+      call Shape (xsi, i, j, m, n, det)
+      side = 1.0
+    case (2)
+      xsi = 1.0
+      call Shape (xsi, i, j, m, n, det)
+      side  = 1.0
+    case default
+      print *, 'isi1 has an invalid value'
+      stop
+    end select
   end subroutine Bcside
 end module assemb_mod
