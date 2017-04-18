@@ -17,10 +17,11 @@ module assemb_mod
   private :: Shape
 
 contains
-  subroutine Assemb  (w1)
+  subroutine Assemb  (pos, w1)
     implicit none
 
     real, dimension (:), intent (in)  :: w1
+    real, dimension (:), intent (in)  :: pos
 
     integer :: k, kk, kkk, iq
     integer :: i, j, m, n
@@ -40,6 +41,7 @@ contains
       do kk = 1, numn
         l = node (k, kk)
         do iq = 1, ngaus
+          xsi = pos(iq)
           call Shape (xsi, i, j, m, n, det, ns, nx)
           f(l) = f(l) + ns(kk) * qq(k) * det * w1(iq)
           do kkk = 1, numn
@@ -118,22 +120,28 @@ contains
     select case (numn)
     case (2)
       xlen = abs (x(j) - x(i))
-      ns = 0.5 * [1.0 - xsi, 1.0 + xsi]
+      if (present (ns)) then
+        ns = 0.5 * [1.0 - xsi, 1.0 + xsi]
+      end if
       nxsi  = [-0.5, 0.5]
       xxsi = dot_product (nxsi, x([i, j]))
     case (3)
       xlen = abs (x(m) - x(i))
+      if (present (ns)) then
       ns = [0.5 * xsi * (xsi - 1.0),&
             1.0 - xsi ** 2,&
             0.5 * xsi * (xsi + 1.0)]
+      end if
       nxsi = [xsi - 0.5, -2.0 * xsi, xsi + 0.5]
       xxsi = dot_product (nxsi, x([i, j, m]))
     case (4)
       xlen = abs (x(n) - x(i))
+      if (present (ns)) then
       ns = [0.0625 * (1.0 - xsi) * (0.9 * xsi ** 2 - 1.0),&
             0.5625 * (1.0 - xsi **2) * (1.0 - 3.0 * xsi), &
             0.5625 * (1.0 - xsi **2) * (1.0 + 3.0 * xsi), &
             0.0625 * (1.0 + xsi) * (0.9 * xsi ** 2 - 1.0)]
+      end if
       nxsi = [0.0625 * (1.0 + 0.18 * xsi - 27.0 * xsi ** 2), &
               0.5625 * (-3.0 - 2.0 * xsi + 9.0 * xsi ** 2), &
               0.5625 * (3.0 - 2.0 * xsi - 9.0 * xsi ** 2), &
@@ -146,9 +154,11 @@ contains
 
     det = xxsi
     if (det == 0.0) write (*, 100) ! exact float equality? stop condition?
-    do k=1, numn
-      nx(k) = nxsi(k)/det
-    end do
+    if (present (nx)) then
+      do k=1, numn
+        nx(k) = nxsi(k)/det
+      end do
+    end if
 100 format (2x, 'The determinant  = 0.0')
   end subroutine Shape
 
