@@ -28,7 +28,7 @@ program FEM_1D
     call Matrix ()
     if (ntype == 2) then
       if (kount == kprnt) then
-        call Print_data ()
+        call Print_data (ntime, time)
         kount = 0
       end if
       time = time + dt

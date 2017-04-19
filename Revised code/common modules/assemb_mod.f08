@@ -165,7 +165,6 @@ contains
     integer, intent (in) :: isi1, i, j, m, n
     real, intent (out) :: side
     real :: xsi, det
-
     select case (isi1)
     case (1)
       xsi = -1.0
@@ -193,7 +192,6 @@ contains
       print *, 'ns is not allocated; requires an Assemb call'
       stop
     end if
-
     if (nnqs /= 0) then
       do k = 1, nnqs
         nel = lem(k)
@@ -206,7 +204,7 @@ contains
       end do
     else if (nnhc /= 0) then
       do k = 1, nnhc
-        nel = lem(k)
+        nel = lme(k)
         call Nodset (nel, i, j, m, n)
         isi1 = isih(k)
         call Bcside (isi1, side, i, j, m, n)

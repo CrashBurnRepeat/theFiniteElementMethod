@@ -58,7 +58,7 @@ contains
     integer :: i, k
     real    :: rhs
 
-    allocate (b(nnode))
+    if (.not. allocated (b)) allocate (b(nnode))
     b = f
 
     if (iflg /= 1) then ! matches original intent?
