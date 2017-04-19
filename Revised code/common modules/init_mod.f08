@@ -18,6 +18,7 @@ implicit none
   integer, public               :: nstop
   integer, public               :: kprnt
   integer, public               :: ntype
+  integer, public               :: ntime
   integer, public               :: nnhc = 0 ! Intended default?
   integer, public               :: nnst, nnqs
   real, public                  :: dt
@@ -35,7 +36,6 @@ implicit none
   real, public, allocatable     :: cold(:)
   integer, public, allocatable  :: nts(:)
   integer, public, allocatable  :: nqs(:)
-  real, public, allocatable     :: b(:)
   real, public, allocatable     :: x(:)
   real, public, allocatable     :: qq(:)
   real, public, allocatable     :: q(:)
@@ -103,7 +103,6 @@ contains
     allocate (cold(nnode))
     allocate (nts(nnode))
     allocate (nqs(nnode))
-    allocate (b(nnode))
     allocate (x(nnode))
     allocate (qq(nnode))
     allocate (q(nnode))
@@ -117,7 +116,6 @@ contains
     cold = to
     nts = 0
     nqs = 0
-    b = 0.0
     qq = 0.0
     q = 0.0
     f = 0.0
