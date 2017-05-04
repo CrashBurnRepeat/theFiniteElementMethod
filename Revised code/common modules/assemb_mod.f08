@@ -52,7 +52,7 @@ contains
           call Shape (xsi, i, j, m, n, det)
           f(l) = f(l) + ns(kk) * qq(k) * det * w1(iq)
           do kkk = 1, numn
-            ll = node (k,kkk)
+            ll = node(k,kkk)
             diff = dx(k) * nx(kkk) * nx(kk)
             advec = vx(l) * nx (kkk) * ns(kk)
             mass = ns(kkk) * ns(kk)
@@ -154,7 +154,7 @@ contains
     det = xxsi
     if (det == 0.0) write (*, 100) ! exact float equality? stop condition?
     do k=1, numn
-      nx(k) = nxsi(k)/det
+      nx(k) = nxsi(k) / det
     end do
 100 format (2x, 'The determinant  = 0.0')
   end subroutine Shape
@@ -202,7 +202,8 @@ contains
         kk = node(nel, kn)
         f(kk) = f(kk) + ns(kn) * q(k) * side
       end do
-    else if (nnhc /= 0) then
+    end if
+    if (nnhc /= 0) then
       do k = 1, nnhc
         nel = lme(k)
         call Nodset (nel, i, j, m, n)
@@ -212,7 +213,6 @@ contains
         ll = node(nel, kn)
         f(ll) = f(ll) + ns(kn) * h(k) * tinf(k) * side
       end do
-    else
     end if
   end subroutine Bndcon
 end module assemb_mod

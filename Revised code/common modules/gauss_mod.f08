@@ -61,7 +61,7 @@ contains
     if (.not. allocated (b)) allocate (b(nnode))
     b = f
 
-    if (iflg /= 1) then ! matches original intent?
+    if (ntype /= 1) then ! matches original intent?
       do l = 1, nnode
         do jj = 1, nnode
           rhs = (afm * a(l, jj) + p(l, jj) / dt) * cold(jj)
@@ -85,14 +85,17 @@ contains
     implicit none
 
     real, parameter :: ER = 0.0001
-    integer         :: iter = 0
+    integer         :: iter
     integer         :: l, jj
-    real            :: amax = 0.0
-    real            :: sum = 0.0
+    real            :: amax
+    real            :: sum
     real            :: oldval
     real            :: err
     real            :: s
 
+    iter = 0
+    sum = 0.0
+    amax = 1.0 + ER !Guarantees entry into while loops
     select case (ntype)
     case (1)
       do while (amax > ER)
@@ -121,17 +124,19 @@ contains
           sum = 0.0
           do jj = 1, nnode
             if (jj == l) cycle
-            sum = sum + (af * a(l, jj) + p(l, jj)/dt) * cnew(jj)
+            sum = sum + (af * a(l, jj) + p(l, jj) / dt) * cnew(jj)
           end do
           s = af * a(l,l) + p(l,l) / dt
-          cnew(l) = (-sum + b(l))/s
+          cnew(l) = (-sum + b(l)) / s
           err = abs (cnew(l) - oldval)
           if (err > amax) amax = err !why this comparison? seems redundant
         end do
       end do
+      ntime = iter
     case default
+      print *, 'Invalid value for ntype'
+      stop
     end select
-    ntime = iter
   end subroutine Seidel
 
   subroutine Gaussr (d, n)
@@ -198,11 +203,12 @@ contains
     implicit none
 
     real, intent (in) :: time
-    integer           :: maxres = 0
+    integer           :: maxres
     integer           :: i
     real              :: r
     real, parameter   :: ERR = 0.0001
 
+    maxres = 0
     do i = 1, nnode
       r = abs (cnew(i) - cold(i))
       if (r > ERR) maxres = 1
@@ -216,5 +222,7 @@ contains
     end if
 10 format (/, 1x, 'Solution is finished')
 20 format (/, 2x, 'Program has converged in ', i3, ' steps')
+
+  stop !only reached if calculations have converged
   end subroutine Resid
 end module gauss_mod

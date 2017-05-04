@@ -144,12 +144,12 @@ contains
       read (infile_id, *) j,&
                           qq(j),&
                           dx(j),&
-                          (node(j,mm), mm=1, numn)
+                          (node(j,mm), mm = 1, numn)
     end do
 
     do i=1, nnode
       read (infile_id, 1015) word, nt, cnt
-      if (word==STOP_KEYS(1)) exit
+      if (word == STOP_KEYS(1)) exit
       nts(i) = nt
       cold(nt) = cnt
       knode(nt) = 1
@@ -166,7 +166,7 @@ contains
     k = 0
     do i = 1, nnode
       do j = 1, nnst
-        if (i==nts(j)) then
+        if (i == nts(j)) then
           exit_flg = .true.
           exit
         end if
@@ -176,12 +176,12 @@ contains
       nqs(k) = i
     end do
 
-    !do i = 1, 1
-    i = 1
-    read (infile_id, *) h(i), tinf(i), lme(i), isih(i)
-    !end do
+    do i = 1, nnode ! Differs from online version, but agrees with sent version
+      read (infile_id, 1026) word, h(i), tinf(i), lme(i), isih(i)
+      if (word == STOP_KEYS(3)) exit
+    end do
 
-    nnhc = 1
+    nnhc = i - 1
     cnew = cold ! intended assignment?
 
     if (nvel==1) then
